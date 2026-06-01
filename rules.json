@@ -1,0 +1,459 @@
+{
+  "$schema": "figma-export-fidelity/v1",
+  "version": "1.1.0",
+  "updated": "2026-06-01",
+  "purpose": "Figma 设计稿导出 HTML 前的结构与 Token 约束，供 Cursor Agent 审计并调用 Figma MCP 自动修正",
+  "targetFidelity": {
+    "description": "固定 390px 视口、Web 字体已加载、静态页面",
+    "maxPixelDrift": 2,
+    "notGuaranteed": ["跨浏览器字体渲染差异", "复杂动效", "混合模式与多重阴影", "绝对定位主体布局"]
+  },
+  "cursorUsage": {
+    "filesToMention": ["rules.json", "RULES.md", "index.html"],
+    "recommendedWorkflow": [
+      "读取 rules.json 全部 must 级规则",
+      "用 Figma MCP get_metadata / use_figma 审计当前 Frame",
+      "按 fix 字段逐条修正（优先 layout → spacing → typography → color → component）",
+      "用 audit.pluginHint 脚本复检",
+      "试点页截图对比后再批量处理"
+    ],
+    "figmaMcpSkills": ["figma-use", "figma-generate-design"],
+    "agentInstructions": "修正设计稿时只改 Figma 结构与 Token，不要改 HTML 导出结果来凑视觉。所有容器优先 Auto Layout；禁止用绝对坐标替代 flex 语义。"
+  },
+  "tokens": {
+    "canvas": { "width": 390, "heightDefault": 844, "unit": "px" },
+    "safeAreas": {
+      "statusBar": { "width": 390, "height": 44, "fill": "#FFFFFF" },
+      "bottomPlaceholder": { "width": 390, "height": 39, "fill": "#FFFFFF" }
+    },
+    "spacing": {
+      "grid": 4,
+      "pageHorizontal": 16,
+      "moduleGap": 16,
+      "cardPadding": 16,
+      "iconTextGap": 8,
+      "listRowPaddingY": 12,
+      "tagPadding": "4px 8px",
+      "priceSymbolGap": 4
+    },
+    "radius": {
+      "card": 12,
+      "input": 8,
+      "tag": 4,
+      "buttonAllowed": [4, 8, 12, 16],
+      "pill": 999
+    },
+    "heights": {
+      "navBar": 44,
+      "primaryButton": 48,
+      "searchBar": 36,
+      "tabBar": 56
+    },
+    "widths": {
+      "buttonMax": 370
+    },
+    "colors": {
+      "bgPage": "#F7F7F7",
+      "bgContainer": "#FFFFFF",
+      "brand": "#F32F41",
+      "textPrimary": "#333333",
+      "textSecondary": "#929292",
+      "border": "#D7D7D5",
+      "disabled": "#EDEDED",
+      "brandAuxLight": "#FFF2F2"
+    },
+    "fonts": {
+      "uiApple": "PingFang SC",
+      "uiWindows": "Source Han Sans SC",
+      "dataNumber": "TCloudNumber",
+      "dataNumberStyle": "Bold"
+    },
+    "icons": {
+      "canvasSize": 24,
+      "safeArea": 20,
+      "smallSize": 16,
+      "strokeWidth": 2,
+      "library": ["Stratis", "Iconex"]
+    }
+  },
+  "components": {
+    "PageTitleBar": {
+      "height": 44,
+      "htmlTag": "header",
+      "mustUseInstance": true,
+      "forbidden": ["文字 < 或 ＜ 作返回", "容器四周边框"]
+    },
+    "Button": {
+      "height": 48,
+      "maxWidth": 370,
+      "htmlTag": "button",
+      "mustUseInstance": true,
+      "textAlign": "center both axes"
+    },
+    "PageTabs": {
+      "width": 390,
+      "htmlTag": "nav",
+      "forbidden": ["容器四周边框", "与卡片负间距层叠"]
+    }
+  },
+  "rules": [
+    {
+      "id": "RULE-001",
+      "checklistId": "c1",
+      "category": "canvas",
+      "priority": "must",
+      "title": "根画板宽度 390px，无设备外壳",
+      "requirement": "页面根 Frame 宽度固定 390px，直角矩形，禁止圆角画板、设备壳、外描边装饰",
+      "figmaAction": "设置根 Frame layoutMode=VERTICAL, width=390；移除 clipContent 外的装饰层",
+      "audit": {
+        "check": "根 Frame width === 390 && cornerRadius === 0",
+        "pluginHint": "const root = figma.currentPage.selection[0] || figma.currentPage.children.find(n=>n.type==='FRAME'); return { width: root?.width, cornerRadius: root?.cornerRadius };"
+      },
+      "fix": ["选中页面根 Frame，宽设为 390", "删除设备外壳、mockup 装饰层", "确认画板 cornerRadius 为 0"],
+      "htmlMapping": "body 或 .page 容器 width: 390px"
+    },
+    {
+      "id": "RULE-002",
+      "checklistId": "c2",
+      "category": "canvas",
+      "priority": "must",
+      "title": "状态栏与底部占位",
+      "requirement": "顶部 390×44、底部 390×39 纯白 #FFFFFF 占位，不绘制系统 UI",
+      "figmaAction": "在根 Auto Layout 首尾各插入 Fixed 390×44 / 390×39 白底 Frame",
+      "audit": {
+        "check": "存在 height=44 与 height=39 的顶底占位 Frame",
+        "pluginHint": "const f=figma.currentPage.findAll(n=>n.type==='FRAME'&&n.width===390); return f.filter(n=>n.height===44||n.height===39).map(n=>({name:n.name,h:n.height}));"
+      },
+      "fix": ["顶栏下、内容区上插入 StatusBar/Placeholder 390×44 #FFF", "页面最底部插入 BottomSafe/Placeholder 390×39 #FFF"],
+      "htmlMapping": "占位 div，无 status-bar 系统图标"
+    },
+    {
+      "id": "RULE-003",
+      "checklistId": "c3",
+      "category": "canvas",
+      "priority": "must",
+      "title": "页面背景 #F7F7F7",
+      "requirement": "根画板或页面主容器填充 #F7F7F7",
+      "figmaAction": "root.fills = [{ type:'SOLID', color: hexToFigma('#F7F7F7') }]",
+      "audit": { "check": "根 Frame 填充色为 #F7F7F7" },
+      "fix": ["根 Frame 背景设为 #F7F7F7"],
+      "htmlMapping": "background: #F7F7F7 或 var(--bg-page)"
+    },
+    {
+      "id": "RULE-004",
+      "checklistId": "c4",
+      "category": "canvas",
+      "priority": "must",
+      "title": "禁止横向溢出",
+      "requirement": "所有子 Frame 宽度 ≤390，无元素超出画布导致横向滚动",
+      "figmaAction": "检查并修正 width>390 的 Frame；Auto Layout 子项用 FILL 而非固定超宽",
+      "audit": {
+        "check": "无 width > 390 的可见 Frame",
+        "pluginHint": "return figma.currentPage.findAll(n=>n.type==='FRAME'&&n.visible&&n.width>390).map(n=>({name:n.name,width:n.width}));"
+      },
+      "fix": ["将超宽 Frame 改为 ≤390", "列表/卡片使用 padding 16 而非撑满超宽"],
+      "htmlMapping": "overflow-x: hidden; max-width: 390px"
+    },
+    {
+      "id": "RULE-005",
+      "checklistId": "c5",
+      "category": "layout",
+      "priority": "must",
+      "title": "所有容器启用 Auto Layout",
+      "requirement": "根画板、卡片、按钮、列表行、导航栏等 Frame 必须 layoutMode 为 HORIZONTAL 或 VERTICAL，禁止仅用 Group",
+      "figmaAction": "Group 转 Frame 并 Shift+A 启用 Auto Layout；设置 direction、padding、itemSpacing",
+      "audit": {
+        "check": "主体 Frame 的 layoutMode !== 'NONE'",
+        "pluginHint": "return figma.currentPage.findAll(n=>n.type==='FRAME'&&n.layoutMode==='NONE'&&n.children.length>0).map(n=>n.name);"
+      },
+      "fix": ["选中 Group → 右键 Frame selection", "Shift+A 添加 Auto Layout", "用 gap/padding 替代手工 y 坐标"],
+      "htmlMapping": "display: flex; flex-direction; gap; padding",
+      "antiPatterns": ["Group 包裹多元素", "Frame 但 layoutMode=NONE 且多子元素手工摆放"]
+    },
+    {
+      "id": "RULE-006",
+      "checklistId": "c6",
+      "category": "layout",
+      "priority": "must",
+      "title": "禁止主体绝对定位",
+      "requirement": "列表、卡片内容、按钮组等不得 layoutPositioning='ABSOLUTE'，仅角标/浮层例外",
+      "figmaAction": "子节点 layoutPositioning 改为 AUTO；用 Auto Layout 顺序排布",
+      "audit": {
+        "check": "非角标/浮层节点无 ABSOLUTE",
+        "pluginHint": "return figma.currentPage.findAll(n=>'layoutPositioning' in n && n.layoutPositioning==='ABSOLUTE').map(n=>({name:n.name,parent:n.parent?.name}));"
+      },
+      "fix": ["取消 Absolute position", "将元素移入 Auto Layout 流"],
+      "htmlMapping": "避免 position:absolute 作为主布局",
+      "antiPatterns": ["x/y 手工拖拽对齐"]
+    },
+    {
+      "id": "RULE-007",
+      "checklistId": "c7",
+      "category": "layout",
+      "priority": "must",
+      "title": "删除隐藏与废弃图层",
+      "requirement": "visible=false 的废弃层、空 Frame 应删除，避免导出多余 DOM",
+      "figmaAction": "figma.currentPage.findAll(n=>!n.visible) Review 后 delete",
+      "audit": { "check": "无无用 hidden 层" },
+      "fix": ["图层列表面板删除 hidden 废弃层"],
+      "htmlMapping": "减少无用 wrapper"
+    },
+    {
+      "id": "RULE-008",
+      "checklistId": "c8",
+      "category": "layout",
+      "priority": "must",
+      "title": "Tab 与卡片禁止负间距层叠",
+      "requirement": "PageTabs 与下方卡片分属上下 Auto Layout，itemSpacing≥0，禁止负 margin 叠压",
+      "figmaAction": "移除负 itemSpacing；Tab 与卡片间用 16px gap",
+      "audit": { "check": "Tab 容器与卡片无 overlap" },
+      "fix": ["Tab 区域与卡片改为纵向 Auto Layout", "间距 16px"],
+      "htmlMapping": "flex column + gap，无 negative margin"
+    },
+    {
+      "id": "RULE-009",
+      "checklistId": "c9",
+      "category": "spacing",
+      "priority": "must",
+      "title": "4px 模数整数",
+      "requirement": "padding、gap、圆角、固定宽高均为 4 的整数倍，禁止 13.5px 等小数",
+      "figmaAction": "四舍五入到最近 4px 倍数：paddingTop/Left/itemSpacing/cornerRadius",
+      "audit": {
+        "check": "spacing 值 % 4 === 0",
+        "pluginHint": "const frames=figma.currentPage.findAll(n=>n.type==='FRAME'); return frames.filter(f=>[f.paddingTop,f.paddingLeft,f.itemSpacing,f.cornerRadius].some(v=>v&&v%4!==0)).map(f=>({name:f.name,p:f.paddingTop,g:f.itemSpacing,r:f.cornerRadius}));"
+      },
+      "fix": ["Design 面板数值改为 4/8/12/16..."],
+      "htmlMapping": "CSS px 整数，gap 与 padding 可精确映射"
+    },
+    {
+      "id": "RULE-010",
+      "checklistId": "c10",
+      "category": "spacing",
+      "priority": "must",
+      "title": "页面边距与模块间距 16px",
+      "requirement": "主内容区左右 padding 16，模块间 gap 16",
+      "figmaAction": "主容器 paddingLeft/Right=16，兄弟模块 itemSpacing=16",
+      "fix": ["统一为 token spacing.pageHorizontal / moduleGap"],
+      "htmlMapping": "padding: 0 16px; gap: 16px"
+    },
+    {
+      "id": "RULE-011",
+      "checklistId": "c11",
+      "category": "spacing",
+      "priority": "must",
+      "title": "固定高度组件",
+      "requirement": "PageTitleBar 44px，主按钮 48px",
+      "figmaAction": "对应 Frame layoutSizingVertical=FIXED，height=44|48",
+      "fix": ["标题栏高 44", "Button 实例高 48"],
+      "htmlMapping": "height: 44px / 48px"
+    },
+    {
+      "id": "RULE-012",
+      "checklistId": "c12",
+      "category": "spacing",
+      "priority": "must",
+      "title": "按钮最大宽 370px",
+      "requirement": "通栏主按钮、底栏按钮 width≤370",
+      "figmaAction": "Button Frame width=370 或 layoutSizingHorizontal=FIXED",
+      "fix": ["按钮宽设为 370 或 HUG 但不超过 370"],
+      "htmlMapping": "max-width: 370px"
+    },
+    {
+      "id": "RULE-013",
+      "checklistId": "c13",
+      "category": "typography",
+      "priority": "must",
+      "title": "文本必须为 Text 图层",
+      "requirement": "禁止 Outline stroke、Rasterize、PNG 代替文案",
+      "figmaAction": "保留 TEXT 节点 type；转曲内容需重新创建 Text",
+      "audit": {
+        "check": "文案区域无 VECTOR 代替 TEXT",
+        "pluginHint": "return figma.currentPage.findAll(n=>n.type==='VECTOR'&&/标题|按钮|label/i.test(n.name)).map(n=>n.name);"
+      },
+      "fix": ["删除图片化文字，重建 Text 层"],
+      "htmlMapping": "<span>/<p> 可编辑文本"
+    },
+    {
+      "id": "RULE-014",
+      "checklistId": "c14",
+      "category": "typography",
+      "priority": "must",
+      "title": "行高与字间距明确数值",
+      "requirement": "lineHeight 不用 AUTO；letterSpacing 为 px 或 % 明确值",
+      "figmaAction": "text.lineHeight = { unit:'PIXELS', value: N }",
+      "fix": ["文本面板 Line height 改为 Fixed px"],
+      "htmlMapping": "line-height: Npx"
+    },
+    {
+      "id": "RULE-015",
+      "checklistId": "c15",
+      "category": "typography",
+      "priority": "must",
+      "title": "金额 TCloudNumber + ¥ 间距 4px",
+      "requirement": "数字 font=TCloudNumber Bold；¥ 用 UI 字体；水平 gap 4px",
+      "figmaAction": "金额行用 HORIZONTAL Auto Layout gap=4；数字 Text fontName=TCloudNumber Bold",
+      "fix": ["拆分 ¥ 与数字为两个 Text", "gap 4px"],
+      "htmlMapping": "font-family: TCloudNumber; gap: 4px"
+    },
+    {
+      "id": "RULE-016",
+      "checklistId": "c16",
+      "category": "typography",
+      "priority": "must",
+      "title": "禁止字符代替图标",
+      "requirement": "返回不用 < ；勾号不用 √；用 chevron-left、check 组件",
+      "figmaAction": "替换 TEXT 为 Component 实例 chevron-left / check",
+      "fix": ["插入图标组件库实例"],
+      "htmlMapping": "SVG icon，非 text 字符"
+    },
+    {
+      "id": "RULE-017",
+      "checklistId": "c17",
+      "category": "color",
+      "priority": "must",
+      "title": "无阴影无渐变",
+      "requirement": "effects 数组为空或仅简单单层；fills 为 SOLID",
+      "figmaAction": "node.effects = []；移除 GRADIENT fills",
+      "audit": {
+        "pluginHint": "return figma.currentPage.findAll(n=>'effects' in n && n.effects.length>0).map(n=>({name:n.name,effects:n.effects.length}));"
+      },
+      "fix": ["Effects 面板清除 Drop shadow / Layer blur"],
+      "htmlMapping": "box-shadow: none"
+    },
+    {
+      "id": "RULE-018",
+      "checklistId": "c18",
+      "category": "color",
+      "priority": "must",
+      "title": "白底卡片无描边",
+      "requirement": "fill #FFFFFF 的内容卡片 strokes 为空；靠底色+圆角+间距区分",
+      "figmaAction": "card.strokes = []",
+      "fix": ["移除白卡 1px 边框"],
+      "htmlMapping": "border: none on .card"
+    },
+    {
+      "id": "RULE-019",
+      "checklistId": "c19",
+      "category": "color",
+      "priority": "should",
+      "title": "颜色使用规范 Token",
+      "requirement": "文字/背景/边框使用 tokens.colors 定义值，绑定 Variable 更佳",
+      "figmaAction": "setBoundVariableForPaint 或手动设为 #333/#929292/#F32F41 等",
+      "fix": ["对照 tokens.colors 修正色值"],
+      "htmlMapping": "CSS variables"
+    },
+    {
+      "id": "RULE-020",
+      "checklistId": "c20",
+      "category": "color",
+      "priority": "must",
+      "title": "无混合模式与复杂模糊",
+      "requirement": "blendMode=NORMAL；无 BACKGROUND_BLUR",
+      "figmaAction": "blendMode='NORMAL'; 移除 backdrop blur effects",
+      "fix": ["图层 Blend mode 改 Normal"],
+      "htmlMapping": "无 mix-blend-mode / backdrop-filter"
+    },
+    {
+      "id": "RULE-021",
+      "checklistId": "c21",
+      "category": "component",
+      "priority": "must",
+      "title": "使用组件库实例",
+      "requirement": "PageTitleBar、Button、PageTabs 等为 COMPONENT 实例，未 Detach",
+      "figmaAction": "从库 swap 为规范 Component；避免 mainComponent=null",
+      "audit": {
+        "pluginHint": "return figma.currentPage.findAll(n=>n.type==='INSTANCE').map(i=>({name:i.name,main:i.mainComponent?.name}));"
+      },
+      "fix": ["Assets 面板插入组件实例", "误 Detach 的重新实例化"],
+      "htmlMapping": "语义化 component class"
+    },
+    {
+      "id": "RULE-022",
+      "checklistId": "c22",
+      "category": "asset",
+      "priority": "must",
+      "title": "SVG 矢量图标无 emoji",
+      "requirement": "24×24 画布，strokeWidth=2，库 Stratis/Iconex",
+      "figmaAction": "替换 emoji/文字为 ICON Instance",
+      "fix": ["插入规范图标 Component"],
+      "htmlMapping": "inline SVG"
+    },
+    {
+      "id": "RULE-023",
+      "checklistId": "c23",
+      "category": "asset",
+      "priority": "should",
+      "title": "图片占位规范",
+      "requirement": "#EDEDED 底 + 居中白色 linear image 图标",
+      "figmaAction": "占位 Frame fill #EDEDED + icon instance",
+      "fix": ["统一占位样式"],
+      "htmlMapping": ".image-placeholder"
+    },
+    {
+      "id": "RULE-024",
+      "checklistId": "c24",
+      "category": "component",
+      "priority": "should",
+      "title": "图层可读命名",
+      "requirement": "格式 组件/变体/状态 或语义英文名，非 Frame 123",
+      "figmaAction": "重命名 node.name",
+      "fix": ["Button/Primary/Default 等"],
+      "htmlMapping": "class / data-component 可读"
+    },
+    {
+      "id": "RULE-025",
+      "checklistId": "c25",
+      "category": "acceptance",
+      "priority": "must",
+      "title": "试点页试导出",
+      "requirement": "选含标题栏+列表+按钮+卡片的典型页先导出 1 页验证",
+      "figmaAction": "人工：插件导出单 Frame",
+      "fix": ["选试点 Frame 导出"],
+      "htmlMapping": "N/A"
+    },
+    {
+      "id": "RULE-026",
+      "checklistId": "c26",
+      "category": "acceptance",
+      "priority": "must",
+      "title": "截图对比 ≤2px",
+      "requirement": "Figma 导出图 vs 浏览器 390 宽截图叠图，主要区块偏差≤2px",
+      "figmaAction": "人工验收",
+      "fix": ["未通过项回 Figma 改结构"],
+      "htmlMapping": "N/A"
+    },
+    {
+      "id": "RULE-027",
+      "checklistId": "c27",
+      "category": "acceptance",
+      "priority": "must",
+      "title": "无横向滚动",
+      "requirement": "390 宽视口下 document.documentElement.scrollWidth ≤ 390",
+      "figmaAction": "人工浏览器检查",
+      "fix": ["回 RULE-004 修正超宽"],
+      "htmlMapping": "overflow-x: hidden"
+    },
+    {
+      "id": "RULE-028",
+      "checklistId": "c28",
+      "category": "acceptance",
+      "priority": "must",
+      "title": "Web 字体已引入",
+      "requirement": "TCloudNumber、Source Han Sans SC 等在 HTML @font-face 可用",
+      "figmaAction": "导出配置或 HTML 模板检查",
+      "fix": ["补充 @font-face"],
+      "htmlMapping": "@font-face"
+    }
+  ],
+  "antiPatterns": [
+    { "id": "AP-01", "description": "Group + 绝对定位 eyeball 对齐", "severity": "critical" },
+    { "id": "AP-02", "description": "小数 px 间距", "severity": "high" },
+    { "id": "AP-03", "description": "文字转曲或 Rasterize", "severity": "critical" },
+    { "id": "AP-04", "description": "Tab 负间距压住卡片", "severity": "high" },
+    { "id": "AP-05", "description": "白底卡片 1px 描边", "severity": "medium" },
+    { "id": "AP-06", "description": "多重阴影 / Inner shadow / Layer blur", "severity": "high" },
+    { "id": "AP-07", "description": "Frame 宽度 >390", "severity": "critical" },
+    { "id": "AP-08", "description": "用 < √ emoji 代替图标", "severity": "medium" }
+  ],
+  "agentPromptTemplate": "请读取 @rules.json，对当前 Figma 页面（链接或选中 Frame）执行导出 HTML 前的合规审计。\n\n步骤：\n1. 用 get_metadata / use_figma 获取页面结构\n2. 逐条检查 priority=must 的 rules（共 22 条）\n3. 输出违规清单：ruleId、节点名、当前值、期望值\n4. 经我确认后，用 figma-use 按 fix 字段自动修正\n5. 修正后用 audit.pluginHint 复检\n6. 全部 must 通过后告知可试导出\n\n约束：只改 Figma 结构，不改 HTML；所有容器优先 Auto Layout；间距对齐 4px 模数。"
+}

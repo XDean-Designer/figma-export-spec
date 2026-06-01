@@ -1,0 +1,1877 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Figma 设计稿导出 HTML 前的结构与 Token 约束；供 Cursor Agent 审计并调用 Figma MCP 自动修正。">
+  <meta name="cursor:purpose" content="figma-pre-export-html-fidelity">
+  <meta name="cursor:rules-file" content="rules.json">
+  <meta name="cursor:rules-markdown" content="RULES.md">
+  <link rel="alternate" type="application/json" href="rules.json" title="Figma Export Rules (JSON)">
+  <title>Figma 导出 HTML 还原度检查清单</title>
+  <style>
+    :root {
+      --sidebar-w: 260px;
+      --main-bg: #f5f6f8;
+      --sidebar-bg: #fff;
+      --card-bg: #fff;
+      --text: #1f2329;
+      --text-secondary: #646a73;
+      --text-muted: #8f959e;
+      --border: #dee0e3;
+      --brand: #1a70fe;
+      --brand-bg: #e7f1ff;
+      --success: #2ba471;
+      --success-bg: #e8f8f2;
+      --warning: #e37318;
+      --warning-bg: #fef3e6;
+      --danger: #d54941;
+      --danger-bg: #fdecee;
+      --radius: 12px;
+      --radius-sm: 8px;
+      --shadow: 0 1px 2px rgba(0,0,0,.04);
+      --font: "PingFang SC", "Source Han Sans SC", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+      --mono: ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: var(--font);
+      font-size: 14px;
+      line-height: 1.65;
+      color: var(--text);
+      background: var(--main-bg);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .layout { display: flex; min-height: 100vh; }
+
+    .sidebar {
+      width: var(--sidebar-w);
+      background: var(--sidebar-bg);
+      border-right: 1px solid var(--border);
+      position: fixed;
+      inset: 0 auto 0 0;
+      overflow-y: auto;
+      z-index: 100;
+    }
+
+    .sidebar-brand {
+      padding: 24px 20px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .sidebar-brand h1 {
+      font-size: 17px;
+      font-weight: 600;
+      line-height: 1.4;
+      margin-bottom: 6px;
+    }
+
+    .sidebar-brand p {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .sidebar-brand .ver {
+      display: inline-block;
+      margin-top: 10px;
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 4px;
+      background: var(--brand-bg);
+      color: var(--brand);
+    }
+
+    .nav-list {
+      list-style: none;
+      padding: 12px 10px 32px;
+    }
+
+    .nav-list a {
+      display: block;
+      padding: 10px 12px;
+      border-radius: var(--radius-sm);
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 13px;
+      transition: background .15s, color .15s;
+    }
+
+    .nav-list a:hover { background: #f2f3f5; color: var(--text); }
+    .nav-list a.active { background: var(--brand-bg); color: var(--brand); font-weight: 500; }
+
+    .main {
+      margin-left: var(--sidebar-w);
+      flex: 1;
+      min-width: 0;
+      padding: 0 32px 80px;
+    }
+
+    .main-inner { max-width: 880px; margin: 0 auto; }
+
+    .hero {
+      margin: 28px 0 24px;
+      padding: 28px;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    .hero h2 {
+      font-size: 26px;
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
+
+    .hero-desc {
+      color: var(--text-secondary);
+      max-width: 640px;
+      margin-bottom: 20px;
+    }
+
+    .hero-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .pill {
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: #f2f3f5;
+      color: var(--text-secondary);
+    }
+
+    .pill.brand { background: var(--brand-bg); color: var(--brand); }
+    .pill.success { background: var(--success-bg); color: var(--success); }
+    .pill.warning { background: var(--warning-bg); color: var(--warning); }
+
+    section { margin-bottom: 48px; scroll-margin-top: 24px; }
+
+    .section-title {
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .section-title .num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 28px;
+      height: 28px;
+      font-size: 13px;
+      color: #fff;
+      background: var(--brand);
+      border-radius: 6px;
+    }
+
+    .section-title::after {
+      content: "";
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    h3 {
+      font-size: 16px;
+      font-weight: 600;
+      margin: 24px 0 12px;
+      color: #2c2c2c;
+    }
+
+    p, li { color: var(--text-secondary); }
+    ul, ol { padding-left: 20px; margin-bottom: 12px; }
+    li { margin-bottom: 6px; }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin: 16px 0;
+      box-shadow: var(--shadow);
+    }
+
+    .card-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 12px;
+    }
+
+    .callout {
+      border-radius: var(--radius-sm);
+      padding: 14px 16px;
+      margin: 16px 0;
+      font-size: 13px;
+    }
+
+    .callout.info { background: var(--brand-bg); border: 1px solid #c5dcff; color: #0d3d8f; }
+    .callout.warn { background: var(--warning-bg); border: 1px solid #f5d4b3; color: #8a4b00; }
+    .callout.danger { background: var(--danger-bg); border: 1px solid #f5c4c1; color: #8a2e28; }
+    .callout.success { background: var(--success-bg); border: 1px solid #b8e6d4; color: #0d5c3a; }
+
+    .callout strong { display: block; margin-bottom: 4px; color: inherit; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      margin: 12px 0;
+    }
+
+    th, td {
+      border: 1px solid var(--border);
+      padding: 10px 12px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th { background: #f7f8fa; font-weight: 600; color: var(--text); }
+    td code, li code, p code {
+      font-family: var(--mono);
+      font-size: 12px;
+      background: #f2f3f5;
+      padding: 1px 6px;
+      border-radius: 4px;
+      color: #c41d7f;
+    }
+
+    .tag {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 500;
+      padding: 2px 8px;
+      border-radius: 4px;
+      margin-right: 6px;
+    }
+
+    .tag-must { background: var(--danger-bg); color: var(--danger); }
+    .tag-should { background: var(--warning-bg); color: var(--warning); }
+    .tag-can { background: #eef0f3; color: var(--text-muted); }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .compare {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin: 12px 0;
+    }
+
+    .compare-item {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+    }
+
+    .compare-item .head {
+      padding: 8px 12px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .compare-item.bad .head { background: var(--danger-bg); color: var(--danger); }
+    .compare-item.good .head { background: var(--success-bg); color: var(--success); }
+
+    .compare-item .body {
+      padding: 12px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      background: #fafbfc;
+    }
+
+    .demo-frame {
+      border: 1px dashed var(--border);
+      border-radius: var(--radius-sm);
+      padding: 16px;
+      background: #fafbfc;
+      font-size: 12px;
+    }
+
+    .demo-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+
+    .demo-box {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 16px;
+    }
+
+    .demo-flex {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 16px;
+      background: #f7f7f7;
+      border-radius: 8px;
+      width: 200px;
+    }
+
+    .demo-flex .item {
+      background: #fff;
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 12px;
+    }
+
+    /* Checklist */
+    .checklist-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .progress-wrap {
+      flex: 1;
+      min-width: 200px;
+    }
+
+    .progress-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-bottom: 6px;
+    }
+
+    .progress-bar {
+      height: 8px;
+      background: #eef0f3;
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--brand), #4d9bff);
+      border-radius: 999px;
+      transition: width .25s ease;
+    }
+
+    .btn {
+      appearance: none;
+      border: 1px solid var(--border);
+      background: #fff;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 13px;
+      padding: 8px 14px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: background .15s, border-color .15s;
+    }
+
+    .btn:hover { background: #f7f8fa; }
+    .btn.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
+    .btn.primary:hover { background: #1560db; }
+
+    .check-group { margin-bottom: 20px; }
+
+    .check-group-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .check-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 10px 0;
+      border-bottom: 1px solid #f0f1f3;
+    }
+
+    .check-item:last-child { border-bottom: none; }
+
+    .check-item input {
+      width: 18px;
+      height: 18px;
+      margin-top: 2px;
+      flex-shrink: 0;
+      accent-color: var(--brand);
+      cursor: pointer;
+    }
+
+    .check-item label {
+      flex: 1;
+      cursor: pointer;
+      font-size: 13px;
+      color: var(--text);
+    }
+
+    .check-item .hint {
+      display: block;
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .check-item.done label { color: var(--text-muted); text-decoration: line-through; }
+
+    .result-banner {
+      display: none;
+      margin-top: 16px;
+      padding: 16px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+    }
+
+    .result-banner.show { display: block; }
+    .result-banner.ready { background: var(--success-bg); border: 1px solid #b8e6d4; color: #0d5c3a; }
+    .result-banner.not-ready { background: var(--warning-bg); border: 1px solid #f5d4b3; color: #8a4b00; }
+
+    .flow {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 16px 0;
+    }
+
+    .flow-step {
+      flex: 1;
+      min-width: 140px;
+      padding: 14px;
+      background: #f7f8fa;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+    }
+
+    .flow-step strong {
+      display: block;
+      font-size: 13px;
+      margin-bottom: 4px;
+      color: var(--text);
+    }
+
+    .flow-step span { color: var(--text-secondary); }
+
+    /* Cursor Agent 专区 */
+    .agent-hero {
+      border: 2px solid var(--brand);
+      background: linear-gradient(135deg, #f0f6ff 0%, #fff 60%);
+    }
+
+    .agent-hero .hero-desc { max-width: 100%; }
+
+    .agent-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 16px 0;
+    }
+
+    .code-block {
+      position: relative;
+      background: #1e1e1e;
+      color: #d4d4d4;
+      border-radius: var(--radius-sm);
+      padding: 16px;
+      font-family: var(--mono);
+      font-size: 12px;
+      line-height: 1.55;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      margin: 12px 0;
+    }
+
+    .code-block .copy-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      font-size: 11px;
+      padding: 4px 10px;
+    }
+
+    .rules-table-wrap { overflow-x: auto; margin: 12px 0; }
+
+    .rules-table { font-size: 12px; }
+    .rules-table td:first-child { font-family: var(--mono); font-size: 11px; white-space: nowrap; }
+    .rules-table .pri-must { color: var(--danger); font-weight: 600; }
+    .rules-table .pri-should { color: var(--warning); font-weight: 600; }
+
+    .rule-detail {
+      border-left: 3px solid var(--border);
+      padding: 12px 16px;
+      margin: 12px 0;
+      background: #fafbfc;
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    }
+
+    .rule-detail[data-priority="must"] { border-left-color: var(--danger); }
+    .rule-detail[data-priority="should"] { border-left-color: var(--warning); }
+
+    .rule-detail-head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .rule-detail-head code { font-size: 11px; }
+
+    .rule-detail dl {
+      display: grid;
+      grid-template-columns: 100px 1fr;
+      gap: 6px 12px;
+      font-size: 12px;
+      margin: 0;
+    }
+
+    .rule-detail dt { color: var(--text-muted); font-weight: 500; }
+    .rule-detail dd { color: var(--text-secondary); margin: 0; }
+
+    .visually-hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0,0,0,0);
+      border: 0;
+    }
+
+    #agent-summary {
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.7;
+    }
+
+    @media (max-width: 960px) {
+      .sidebar { position: static; width: 100%; border-right: none; border-bottom: 1px solid var(--border); }
+      .main { margin-left: 0; padding: 0 16px 48px; }
+      .layout { flex-direction: column; }
+      .grid-2, .compare { grid-template-columns: 1fr; }
+    }
+
+    @media print {
+      .sidebar, .checklist-toolbar, .btn { display: none !important; }
+      .main { margin: 0; padding: 0; }
+      .check-item input { accent-color: #000; }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <h1>Figma → HTML<br>还原度检查清单</h1>
+        <p>导出前逐项核对，降低插件转换偏差</p>
+        <span class="ver">v1.1 · Cursor Agent</span>
+      </div>
+      <nav aria-label="规范目录">
+        <ul class="nav-list">
+          <li><a href="#cursor-agent" class="active">★ Cursor Agent</a></li>
+          <li><a href="#rules-index">规则索引 (JSON)</a></li>
+          <li><a href="#overview">0. 目标与边界</a></li>
+          <li><a href="#workflow">1. 导出前流程</a></li>
+          <li><a href="#checklist">2. 交互检查清单</a></li>
+          <li><a href="#layout">3. 布局与结构</a></li>
+          <li><a href="#spacing">4. 尺寸与间距</a></li>
+          <li><a href="#typography">5. 字体与文本</a></li>
+          <li><a href="#color">6. 颜色与效果</a></li>
+          <li><a href="#component">7. 组件与命名</a></li>
+          <li><a href="#asset">8. 图标与图片</a></li>
+          <li><a href="#avoid">9. 高风险项</a></li>
+          <li><a href="#acceptance">10. 验收标准</a></li>
+        </ul>
+      </nav>
+    </aside>
+
+    <main class="main" id="main-content">
+      <div class="main-inner">
+        <header class="hero">
+          <h2>导出前设计稿调整指南</h2>
+          <p class="hero-desc">
+            本页用于在 Figma 设计稿通过插件导出 HTML 之前，系统化检查并修正设计结构。
+            插件只能忠实转换稿中已有的信息——设计侧约束到位，还原度才能接近「像素级一致」。
+          </p>
+          <div class="hero-pills">
+            <span class="pill brand">适用：静态页面 / 原型 HTML</span>
+            <span class="pill success">目标：误差 ≤ 2px</span>
+            <span class="pill warning">不承诺绝对 100%</span>
+            <span class="pill">移动端 390px 基准</span>
+          </div>
+        </header>
+
+        <!-- ★ Cursor Agent -->
+        <section id="cursor-agent" data-agent-readable="true" data-purpose="figma-pre-export-html-fidelity">
+          <h2 class="section-title"><span class="num">★</span>Cursor Agent 使用说明</h2>
+
+          <div class="hero agent-hero">
+            <h2 style="font-size:20px;margin-bottom:8px">让 Cursor 读取规范并调整 Figma</h2>
+            <p class="hero-desc">
+              本规范提供机器可读数据源。在 Cursor 对话中 <strong>@rules.json</strong> 或 <strong>@RULES.md</strong>，
+              配合 Figma MCP（<code>figma-use</code>），Agent 可审计违规项并批量修正设计稿结构。
+            </p>
+            <div class="agent-actions">
+              <button type="button" class="btn primary" id="btn-copy-prompt">复制 Agent 提示词</button>
+              <button type="button" class="btn" id="btn-copy-rules-md">复制 RULES.md 路径说明</button>
+              <button type="button" class="btn" id="btn-download-json">下载 rules.json</button>
+            </div>
+            <div class="hero-pills">
+              <span class="pill brand">数据源：rules.json</span>
+              <span class="pill">Markdown：RULES.md</span>
+              <span class="pill success">28 条规则 · 22 条 must</span>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title">推荐工作流</div>
+            <ol>
+              <li>Cursor 对话中输入：<code>@rules.json</code> + Figma 文件链接</li>
+              <li>粘贴下方提示词，要求 Agent <strong>先审计、再修正、后复检</strong></li>
+              <li>Agent 用 <code>use_figma</code> 执行 <code>audit.pluginHint</code> 脚本检查违规</li>
+              <li>按 <code>fix</code> 字段逐条修正（优先级：layout → canvas → spacing → typography → color → component）</li>
+              <li>must 规则全部通过后，再试导出 1 页做截图对比</li>
+            </ol>
+          </div>
+
+          <h3>Agent 提示词模板</h3>
+          <div class="code-block" id="agent-prompt-block" aria-label="Agent 提示词模板"><button type="button" class="btn copy-btn" data-copy-target="agent-prompt-block">复制</button></div>
+
+          <h3>Agent 约束摘要</h3>
+          <div id="agent-summary" aria-live="polite"></div>
+
+          <div class="callout info">
+            <strong>修正原则</strong>
+            只改 Figma 结构与 Design Token，<strong>不要</strong>通过改 HTML 导出结果来凑视觉。
+            所有容器优先 Auto Layout；间距对齐 4px 模数；禁止用绝对坐标替代 flex 语义。
+          </div>
+        </section>
+
+        <!-- Rules Index -->
+        <section id="rules-index" data-agent-readable="true">
+          <h2 class="section-title"><span class="num">§</span>规则索引（机器可读）</h2>
+          <p>以下规则与 <code>rules.json</code> 同步。每条含 <code>figmaAction</code>、<code>audit.pluginHint</code>、<code>fix</code>、<code>htmlMapping</code> 字段，供 Cursor 直接执行。</p>
+
+          <div class="rules-table-wrap">
+            <table class="rules-table" id="rules-summary-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>级别</th>
+                  <th>类别</th>
+                  <th>标题</th>
+                  <th>Figma 操作要点</th>
+                </tr>
+              </thead>
+              <tbody id="rules-summary-body"></tbody>
+            </table>
+          </div>
+
+          <details id="rules-details-wrap">
+            <summary style="cursor:pointer;font-weight:600;margin:16px 0">展开全部规则详情（含 audit / fix / htmlMapping）</summary>
+            <div id="rules-details-root"></div>
+          </details>
+        </section>
+
+        <!-- 0. Overview -->
+        <section id="overview" data-agent-readable="true">
+          <h2 class="section-title"><span class="num">0</span>目标与边界</h2>
+
+          <div class="callout info">
+            <strong>合理预期</strong>
+            在固定视口、Web 可用字体已加载、静态页面、无复杂动效的前提下，视觉还原可控制在 <strong>1–2px 误差</strong> 内。
+            「100% 还原」应理解为<strong>可验收的高保真</strong>，而非跨浏览器、跨字体、跨平台的绝对一致。
+          </div>
+
+          <div class="grid-2">
+            <div class="card">
+              <div class="card-title">插件能较好还原</div>
+              <ul>
+                <li>Auto Layout → Flexbox 布局</li>
+                <li>整数 px 的 padding / gap / 圆角</li>
+                <li>纯色填充、1px 描边</li>
+                <li>标准文本样式（字号、行高、字重、颜色）</li>
+                <li>SVG 矢量图标</li>
+                <li>Component 实例的结构映射</li>
+              </ul>
+            </div>
+            <div class="card">
+              <div class="card-title">难以或无法等价还原</div>
+              <ul>
+                <li>绝对定位手工摆放的图层</li>
+                <li>混合模式、复杂模糊、多重阴影</li>
+                <li>非 Web 字体（未提供 fallback）</li>
+                <li>小数 px、非 4 模数间距</li>
+                <li>文字转曲 / 图片化文字</li>
+                <li>负间距层叠、复杂蒙版裁切</li>
+              </ul>
+            </div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>约束级别</th>
+                <th>含义</th>
+                <th>不遵守的后果</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="tag tag-must">必须</span></td>
+                <td>导出前必须满足，否则大概率明显偏差</td>
+                <td>布局错位、间距漂移、文本换行异常</td>
+              </tr>
+              <tr>
+                <td><span class="tag tag-should">应当</span></td>
+                <td>强烈建议，显著影响还原稳定性</td>
+                <td>偶发 2–8px 偏差，需人工修 HTML</td>
+              </tr>
+              <tr>
+                <td><span class="tag tag-can">可选</span></td>
+                <td>优化项，便于后续维护与组件映射</td>
+                <td>不影响单次导出，但增加返工成本</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <!-- 1. Workflow -->
+        <section id="workflow">
+          <h2 class="section-title"><span class="num">1</span>导出前流程</h2>
+          <p>建议按以下顺序操作，避免「导出后再改稿」的反复。</p>
+          <div class="flow">
+            <div class="flow-step"><strong>① 结构整理</strong><span>Auto Layout、层级扁平、删除隐藏层</span></div>
+            <div class="flow-step"><strong>② Token 对齐</strong><span>颜色/字号/间距改用变量或规范值</span></div>
+            <div class="flow-step"><strong>③ 组件替换</strong><span>散件改为 Component 实例</span></div>
+            <div class="flow-step"><strong>④ 本页清单</strong><span>逐项勾选，未通过则回到 Figma 修改</span></div>
+            <div class="flow-step"><strong>⑤ 试导出</strong><span>导出 1 页做截图 diff</span></div>
+            <div class="flow-step"><strong>⑥ 批量导出</strong><span>通过后批量处理同类页面</span></div>
+          </div>
+        </section>
+
+        <!-- 2. Checklist -->
+        <section id="checklist">
+          <h2 class="section-title"><span class="num">2</span>交互检查清单</h2>
+          <p>勾选状态会自动保存在浏览器本地，方便多次打开继续核对。</p>
+
+          <div class="card">
+            <div class="checklist-toolbar">
+              <div class="progress-wrap">
+                <div class="progress-label">
+                  <span>完成进度</span>
+                  <span id="progress-text">0 / 0</span>
+                </div>
+                <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+              </div>
+              <button type="button" class="btn" id="btn-reset">重置清单</button>
+              <button type="button" class="btn primary" id="btn-print">打印 / 导出 PDF</button>
+            </div>
+
+            <div id="checklist-root"></div>
+
+            <div class="result-banner" id="result-banner"></div>
+          </div>
+        </section>
+
+        <!-- 3. Layout -->
+        <section id="layout">
+          <h2 class="section-title"><span class="num">3</span>布局与结构</h2>
+
+          <div class="callout warn">
+            <strong>核心原则：Auto Layout 优先</strong>
+            所有 Frame（容器）应启用自动布局。HTML 的 Flexbox 与 Figma Auto Layout 语义最接近；绝对定位是还原度最大的敌人。
+          </div>
+
+          <h3>3.1 容器规则</h3>
+          <table>
+            <thead>
+              <tr><th>对象</th><th>要求</th><th>级别</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>根画板 / 页面 Frame</td><td>固定宽度（如 390px），纵向 Auto Layout，子元素自上而下排列</td><td><span class="tag tag-must">必须</span></td></tr>
+              <tr><td>卡片、列表行、按钮、导航栏</td><td>独立 Frame + Auto Layout，禁止 Group 代替 Frame</td><td><span class="tag tag-must">必须</span></td></tr>
+              <tr><td>嵌套层级</td><td>语义清晰，建议 ≤ 6 层；过深嵌套会导致导出 DOM 冗余</td><td><span class="tag tag-should">应当</span></td></tr>
+              <tr><td>绝对定位</td><td>仅用于角标、浮层等少量场景；主体内容禁止手工拖拽定位</td><td><span class="tag tag-must">必须</span></td></tr>
+              <tr><td>Constraints</td><td>在 Auto Layout 内优先用 Fill / Hug；少用 Left+Top 固定</td><td><span class="tag tag-should">应当</span></td></tr>
+            </tbody>
+          </table>
+
+          <div class="compare">
+            <div class="compare-item bad">
+              <div class="head">❌ 错误：Group + 绝对定位</div>
+              <div class="body">元素靠 eyeball 对齐，导出后 margin/padding 无法稳定复现，换行即错位。</div>
+            </div>
+            <div class="compare-item good">
+              <div class="head">✓ 正确：Frame + Auto Layout</div>
+              <div class="body">
+                <div class="demo-flex">
+                  <div class="item">标题</div>
+                  <div class="item">副标题</div>
+                  <div class="item">按钮</div>
+                </div>
+                gap 8px，padding 16px → 导出为 flex + gap
+              </div>
+            </div>
+          </div>
+
+          <h3>3.2 画板基准（移动端）</h3>
+          <ul>
+            <li><span class="tag tag-must">必须</span> 画布宽 <code>390px</code>（1x），高默认 <code>844px</code>，内容超出可向下延展</li>
+            <li><span class="tag tag-must">必须</span> 画板为<strong>直角矩形</strong>，禁止设备外壳、圆角画板、外描边装饰</li>
+            <li><span class="tag tag-must">必须</span> 状态栏占位 <code>390×44px</code> 纯白块，不绘制系统 UI</li>
+            <li><span class="tag tag-must">必须</span> 底部安全占位 <code>390×39px</code> 纯白块，不绘制 Home Indicator</li>
+            <li><span class="tag tag-must">必须</span> 内容区禁止横向溢出 390px，禁止出现横向滚动</li>
+          </ul>
+        </section>
+
+        <!-- 4. Spacing -->
+        <section id="spacing">
+          <h2 class="section-title"><span class="num">4</span>尺寸与间距</h2>
+
+          <div class="callout info">
+            <strong>4px 模数</strong>
+            所有 padding、gap、margin、宽高尽量使用 4 的整数倍。插件对整数 px 映射最稳定；小数 px 会在浏览器中四舍五入，产生累计误差。
+          </div>
+
+          <table>
+            <thead>
+              <tr><th>Token</th><th>值</th><th>用途</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>页面左右边距</td><td><code>16px</code></td><td>主内容区安全边距</td></tr>
+              <tr><td>模块间距</td><td><code>16px</code></td><td>卡片与卡片、区块与区块</td></tr>
+              <tr><td>卡片内边距</td><td><code>16px</code></td><td>四向一致或明确标注</td></tr>
+              <tr><td>图文间距</td><td><code>8px</code></td><td>图标与文字、标签与文字</td></tr>
+              <tr><td>列表行间距</td><td><code>12px</code></td><td>列表项上下 padding</td></tr>
+              <tr><td>标签内边距</td><td><code>4px 8px</code></td><td>小标签、角标</td></tr>
+            </tbody>
+          </table>
+
+          <h3>圆角规范</h3>
+          <table>
+            <thead><tr><th>场景</th><th>圆角</th></tr></thead>
+            <tbody>
+              <tr><td>全局卡片</td><td><code>12px</code></td></tr>
+              <tr><td>输入框 / 小模块</td><td><code>8px</code></td></tr>
+              <tr><td>标签 / 角标</td><td><code>4px</code></td></tr>
+              <tr><td>按钮</td><td>仅在 <code>4 / 8 / 12 / 16px</code> 四档中选择，同类型全站统一</td></tr>
+              <tr><td>圆形</td><td>使用 <code>999px</code> 或宽高相等 + 50%（插件常映射为 border-radius: 999px）</td></tr>
+            </tbody>
+          </table>
+
+          <h3>固定高度组件</h3>
+          <ul>
+            <li>标题栏 / 导航栏：<code>44px</code></li>
+            <li>主按钮 / 底栏按钮：<code>48px</code>，最大宽度 <code>370px</code></li>
+            <li>搜索框：<code>36px</code></li>
+            <li>通用图标画布：<code>24×24px</code>（可视区 20×20）</li>
+          </ul>
+        </section>
+
+        <!-- 5. Typography -->
+        <section id="typography">
+          <h2 class="section-title"><span class="num">5</span>字体与文本</h2>
+
+          <table>
+            <thead>
+              <tr><th>类型</th><th>字体</th><th>说明</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>UI 文案（Apple）</td>
+                <td>PingFang SC</td>
+                <td>macOS / iOS 设计稿标注</td>
+              </tr>
+              <tr>
+                <td>UI 文案（Windows）</td>
+                <td>Source Han Sans SC</td>
+                <td>Windows 导出 HTML 时 PingFang 易偏差，建议改用思源黑体</td>
+              </tr>
+              <tr>
+                <td>金额数字</td>
+                <td>TCloudNumber Bold</td>
+                <td>纯数字 + 小数点；需在 HTML 中 @font-face 引入</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <h3>文本层要求</h3>
+          <ul>
+            <li><span class="tag tag-must">必须</span> 使用 Figma 文本层，<strong>禁止</strong>将文字转为矢量或图片</li>
+            <li><span class="tag tag-must">必须</span> 行高、字间距使用明确数值，避免「Auto」导致浏览器与 Figma 计算不一致</li>
+            <li><span class="tag tag-should">应当</span> 段落宽度用 Auto Layout 的 Fixed / Fill 约束，而非手动拉文本框</li>
+            <li><span class="tag tag-should">应当</span> 长文案预设换行行为（truncate 场景单独标注 max-lines）</li>
+            <li><span class="tag tag-must">必须</span> 混排金额时：<code>¥</code> 用 UI 字体，数字用 TCloudNumber，间距 <code>4px</code></li>
+          </ul>
+
+          <div class="compare">
+            <div class="compare-item bad">
+              <div class="head">❌ 禁止</div>
+              <div class="body">文字转曲、用 PNG 代替标题、用字符 <code>&lt;</code> <code>√</code> 代替图标</div>
+            </div>
+            <div class="compare-item good">
+              <div class="head">✓ 推荐</div>
+              <div class="body">Text 图层 + 规范字号 + 矢量图标组件（chevron-left、check 等）</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 6. Color -->
+        <section id="color">
+          <h2 class="section-title"><span class="num">6</span>颜色与效果</h2>
+
+          <div class="callout warn">
+            <strong>视觉铁律（高还原场景）</strong>
+            无阴影、无投影、无渐变。层级仅通过底色、1px 分割线、间距、字重区分——这类稿面导出最稳定。
+          </div>
+
+          <table>
+            <thead><tr><th>用途</th><th>色值</th></tr></thead>
+            <tbody>
+              <tr><td>页面背景</td><td><code>#F7F7F7</code></td></tr>
+              <tr><td>卡片 / 容器白底</td><td><code>#FFFFFF</code></td></tr>
+              <tr><td>主色</td><td><code>#F32F41</code></td></tr>
+              <tr><td>标题文字</td><td><code>#333333</code></td></tr>
+              <tr><td>次要文字</td><td><code>#929292</code></td></tr>
+              <tr><td>分割线 / 边框</td><td><code>#D7D7D5</code></td></tr>
+              <tr><td>禁用 / 占位底</td><td><code>#EDEDED</code></td></tr>
+            </tbody>
+          </table>
+
+          <h3>效果限制</h3>
+          <table>
+            <thead><tr><th>效果</th><th>建议</th></tr></thead>
+            <tbody>
+              <tr><td>填充</td><td>纯色优先；半透明用 rgba，避免复杂渐变</td></tr>
+              <tr><td>描边</td><td>1px 实线；白底内容卡片通常无描边，靠底色对比区分</td></tr>
+              <tr><td>阴影</td><td>能不用就不用；必要时单层、简单参数</td></tr>
+              <tr><td>模糊 / 背景模糊</td><td>高风险，CSS backdrop-filter 兼容性差</td></tr>
+              <tr><td>混合模式</td><td>禁止用于核心 UI，HTML 难以等价</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <!-- 7. Component -->
+        <section id="component">
+          <h2 class="section-title"><span class="num">7</span>组件与命名</h2>
+
+          <p>组件化不仅为了设计效率，更是为了让插件能识别「这是按钮 / 标题栏 / 列表行」，输出语义化 HTML。</p>
+
+          <table>
+            <thead><tr><th>规范</th><th>说明</th><th>级别</th></tr></thead>
+            <tbody>
+              <tr><td>使用 Component 实例</td><td>PageTitleBar、Button、PageTabs 等须从组件库实例化，禁止每次重画</td><td><span class="tag tag-must">必须</span></td></tr>
+              <tr><td>命名规范</td><td><code>组件/变体/状态</code>，如 <code>Button/Primary/Default</code></td><td><span class="tag tag-should">应当</span></td></tr>
+              <tr><td>图层命名</td><td>英文或拼音+英文，避免「矩形 123」「Frame 456」</td><td><span class="tag tag-should">应当</span></td></tr>
+              <tr><td>Variant 属性</td><td>状态（Default/Hover/Disabled）用 Variant，不要复制多个独立组件</td><td><span class="tag tag-should">应当</span></td></tr>
+              <tr><td>Detach 限制</td><td>导出前检查是否误 Detach；Detached 实例无法关联组件规则</td><td><span class="tag tag-must">必须</span></td></tr>
+            </tbody>
+          </table>
+
+          <h3>常用组件映射参考</h3>
+          <table>
+            <thead><tr><th>Figma 组件</th><th>期望 HTML 结构</th></tr></thead>
+            <tbody>
+              <tr><td>PageTitleBar</td><td>header + 返回 icon + 标题 + 右侧操作</td></tr>
+              <tr><td>Button</td><td>button / a，文案 flex 居中</td></tr>
+              <tr><td>PageTabs</td><td>nav + 等分 tab + 底部指示条</td></tr>
+              <tr><td>列表行</td><td>flex row，左图标 + 中内容 + 右箭头</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <!-- 8. Assets -->
+        <section id="asset">
+          <h2 class="section-title"><span class="num">8</span>图标与图片</h2>
+
+          <h3>图标</h3>
+          <ul>
+            <li><span class="tag tag-must">必须</span> 使用 SVG 矢量图标（组件库 Stratis / Iconex），禁止 emoji 占位</li>
+            <li><span class="tag tag-must">必须</span> 线性图标 stroke-width 统一为 2</li>
+            <li><span class="tag tag-should">应当</span> 图标作为 Component，颜色用 #333 / #929292 / #F32F41 规范色</li>
+            <li><span class="tag tag-must">必须</span> 返回箭头用 <code>chevron-left</code>，禁止文字 <code>&lt;</code></li>
+          </ul>
+
+          <h3>图片</h3>
+          <ul>
+            <li>占位统一：浅灰底 <code>#EDEDED</code> + 居中白色 linear <code>image</code> 图标</li>
+            <li>商品主图等比：1:1 或明确 aspect-ratio，用 Fill 而非拉伸</li>
+            <li>导出格式：简单图标 SVG；照片 PNG/WebP @2x；避免超大未压缩图</li>
+            <li>图片容器设置 clip / overflow hidden，防止溢出卡片圆角</li>
+          </ul>
+        </section>
+
+        <!-- 9. Avoid -->
+        <section id="avoid">
+          <h2 class="section-title"><span class="num">9</span>高风险项（导出前必查）</h2>
+
+          <div class="card">
+            <div class="card-title">以下任一出现，还原度会显著下降</div>
+            <ol>
+              <li>主体内容使用绝对定位（x/y 手工摆放）</li>
+              <li>Group 代替 Frame，或 Auto Layout 未开启</li>
+              <li>间距 / 尺寸含小数（如 13.5px、7px）</li>
+              <li>隐藏层、锁定的废弃图层未删除</li>
+              <li>文本 OUTLINE 或 rasterize</li>
+              <li>Tab 与卡片负间距层叠遮挡</li>
+              <li>白底卡片加 1px 描边（与 HTML 规范冲突时易 double border）</li>
+              <li>使用 Figma 特有效果：多重阴影、Inner shadow、Layer blur</li>
+              <li>布尔运算未 Flatten 的复杂矢量（部分插件解析失败）</li>
+              <li>Frame 尺寸超出 390 导致横向溢出</li>
+            </ol>
+          </div>
+
+          <div class="callout danger">
+            <strong>插件无法替你「猜」意图</strong>
+            若设计稿是「看起来对」但结构混乱，导出 HTML 只会复现混乱的结构。
+            调整设计稿 = 为插件提供可机器读取的布局语义。
+          </div>
+        </section>
+
+        <!-- 10. Acceptance -->
+        <section id="acceptance">
+          <h2 class="section-title"><span class="num">10</span>验收标准</h2>
+
+          <p>导出后建议按以下标准验收，而非凭感觉「差不多」。</p>
+
+          <table>
+            <thead>
+              <tr><th>验收项</th><th>方法</th><th>通过标准</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>整体布局</td>
+                <td>Figma 截图 vs 浏览器截图叠图</td>
+                <td>主要区块位置偏差 ≤ 2px</td>
+              </tr>
+              <tr>
+                <td>间距</td>
+                <td>DevTools 测量 padding / gap</td>
+                <td>与稿面标注一致，无累计漂移</td>
+              </tr>
+              <tr>
+                <td>字体</td>
+                <td>检查 computed font-family / size / line-height</td>
+                <td>字体文件已加载，字号行高一致</td>
+              </tr>
+              <tr>
+                <td>颜色</td>
+                <td>取色器对比</td>
+                <td>Hex 完全一致（注意导出是否转为 rgba）</td>
+              </tr>
+              <tr>
+                <td>文本换行</td>
+                <td>长文案、窄容器场景</td>
+                <td>换行位置与 Figma 一致或符合预设 truncate</td>
+              </tr>
+              <tr>
+                <td>响应</td>
+                <td>固定 390 宽视口</td>
+                <td>无横向滚动条，无元素裁切异常</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <h3>推荐验收流程</h3>
+          <ol>
+            <li>选 1 个典型页（含标题栏 + 列表 + 按钮 + 卡片）做试点</li>
+            <li>导出 HTML 后在 390 宽视口打开</li>
+            <li>使用截图对比工具（Figma export vs 浏览器 full page screenshot）</li>
+            <li>未通过项回到 Figma 改结构，而非在 HTML 里手工 patch</li>
+            <li>试点通过后，同类页面批量导出</li>
+          </ol>
+
+          <div class="callout success">
+            <strong>清单全部勾选 + 试点页验收通过</strong>
+            即可认为该批次设计稿已达到「可高保真导出」状态。后续维护时，新增页面仍须遵循本页规则。
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    (function () {
+      var STORAGE_KEY = "figma-export-checklist-v1.1";
+      var root = document.getElementById("checklist-root");
+      var progressFill = document.getElementById("progress-fill");
+      var progressText = document.getElementById("progress-text");
+      var resultBanner = document.getElementById("result-banner");
+      var RULES_DATA = null;
+
+      function loadState() {
+        try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"); }
+        catch (e) { return {}; }
+      }
+
+      function saveState(state) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      }
+
+      function priorityLabel(p) {
+        return p === "must" ? "必须" : p === "should" ? "应当" : "可选";
+      }
+
+      function buildChecklistFromRules(rules) {
+        var groups = {};
+        var categoryNames = {
+          canvas: "画板与页面",
+          layout: "布局结构",
+          spacing: "间距与尺寸",
+          typography: "字体与文本",
+          color: "颜色与效果",
+          component: "组件与命名",
+          asset: "组件与资源",
+          acceptance: "导出前最终确认"
+        };
+
+        rules.forEach(function (rule) {
+          var cat = rule.category;
+          if (!groups[cat]) groups[cat] = { title: categoryNames[cat] || cat, items: [] };
+          groups[cat].items.push({
+            id: rule.checklistId,
+            ruleId: rule.id,
+            text: rule.title,
+            hint: rule.requirement,
+            priority: rule.priority
+          });
+        });
+
+        var order = ["canvas", "layout", "spacing", "typography", "color", "component", "asset", "acceptance"];
+        return order.filter(function (k) { return groups[k]; }).map(function (k) { return groups[k]; });
+      }
+
+      function getAllIds(checklist) {
+        var ids = [];
+        checklist.forEach(function (g) {
+          g.items.forEach(function (item) { ids.push(item.id); });
+        });
+        return ids;
+      }
+
+      function renderChecklist(checklist) {
+        var state = loadState();
+        root.innerHTML = "";
+
+        checklist.forEach(function (group) {
+          var groupEl = document.createElement("div");
+          groupEl.className = "check-group";
+
+          var title = document.createElement("div");
+          title.className = "check-group-title";
+          title.textContent = group.title;
+          groupEl.appendChild(title);
+
+          group.items.forEach(function (item) {
+            var row = document.createElement("div");
+            row.className = "check-item" + (state[item.id] ? " done" : "");
+            row.setAttribute("data-rule-id", item.ruleId || "");
+            row.setAttribute("data-checklist-id", item.id);
+
+            var input = document.createElement("input");
+            input.type = "checkbox";
+            input.id = item.id;
+            input.checked = !!state[item.id];
+
+            var label = document.createElement("label");
+            label.htmlFor = item.id;
+            var pri = item.priority === "must"
+              ? '<span class="tag tag-must">必须</span> '
+              : item.priority === "should"
+                ? '<span class="tag tag-should">应当</span> '
+                : "";
+            label.innerHTML = pri + "<code>" + (item.ruleId || item.id) + "</code> " + item.text
+              + (item.hint ? '<span class="hint">' + item.hint + "</span>" : "");
+
+            input.addEventListener("change", function () {
+              var s = loadState();
+              s[item.id] = input.checked;
+              saveState(s);
+              row.classList.toggle("done", input.checked);
+              updateProgress(checklist);
+            });
+
+            row.appendChild(input);
+            row.appendChild(label);
+            groupEl.appendChild(row);
+          });
+
+          root.appendChild(groupEl);
+        });
+
+        updateProgress(checklist);
+      }
+
+      function updateProgress(checklist) {
+        var state = loadState();
+        var ids = getAllIds(checklist);
+        var done = ids.filter(function (id) { return state[id]; }).length;
+        var total = ids.length;
+        var pct = total ? Math.round((done / total) * 100) : 0;
+
+        progressFill.style.width = pct + "%";
+        progressText.textContent = done + " / " + total + "（" + pct + "%）";
+
+        resultBanner.className = "result-banner show";
+        if (done === total) {
+          resultBanner.className += " ready";
+          resultBanner.innerHTML = "<strong>✓ 可以导出</strong> 全部 " + total + " 项已通过。建议 Cursor 再跑一遍 rules.json must 规则复检。";
+        } else if (done >= total * 0.8) {
+          resultBanner.className += " not-ready";
+          resultBanner.innerHTML = "<strong>接近完成</strong> 还剩 " + (total - done) + " 项。可用 @rules.json 让 Cursor 自动修正剩余项。";
+        } else {
+          resultBanner.className += " not-ready";
+          resultBanner.innerHTML = "<strong>尚未就绪</strong> 已完成 " + done + " / " + total + " 项。请 @rules.json 审计 Figma 稿。";
+        }
+      }
+
+      function renderRulesIndex(data) {
+        var tbody = document.getElementById("rules-summary-body");
+        var detailsRoot = document.getElementById("rules-details-root");
+        tbody.innerHTML = "";
+        detailsRoot.innerHTML = "";
+
+        data.rules.forEach(function (rule) {
+          var tr = document.createElement("tr");
+          tr.setAttribute("data-rule-id", rule.id);
+          tr.innerHTML =
+            "<td>" + rule.id + "</td>" +
+            '<td class="pri-' + rule.priority + '">' + priorityLabel(rule.priority) + "</td>" +
+            "<td>" + rule.category + "</td>" +
+            "<td>" + rule.title + "</td>" +
+            "<td>" + (rule.figmaAction || "—") + "</td>";
+          tbody.appendChild(tr);
+
+          var detail = document.createElement("article");
+          detail.className = "rule-detail";
+          detail.setAttribute("data-rule-id", rule.id);
+          detail.setAttribute("data-priority", rule.priority);
+          detail.setAttribute("data-category", rule.category);
+
+          var fixList = (rule.fix || []).map(function (f) { return "<li>" + f + "</li>"; }).join("");
+          var anti = (rule.antiPatterns || []).map(function (a) { return "<li>" + a + "</li>"; }).join("");
+
+          detail.innerHTML =
+            '<div class="rule-detail-head">' +
+              "<code>" + rule.id + "</code>" +
+              '<span class="tag tag-' + (rule.priority === "must" ? "must" : rule.priority === "should" ? "should" : "can") + '">' + priorityLabel(rule.priority) + "</span>" +
+              "<strong>" + rule.title + "</strong>" +
+            "</div>" +
+            "<dl>" +
+              "<dt>requirement</dt><dd>" + rule.requirement + "</dd>" +
+              "<dt>figmaAction</dt><dd>" + (rule.figmaAction || "—") + "</dd>" +
+              "<dt>audit.check</dt><dd>" + ((rule.audit && rule.audit.check) || "—") + "</dd>" +
+              "<dt>audit.pluginHint</dt><dd><code style='display:block;white-space:pre-wrap;font-size:11px'>" + ((rule.audit && rule.audit.pluginHint) || "—") + "</code></dd>" +
+              "<dt>fix</dt><dd><ol style='margin:0;padding-left:18px'>" + fixList + "</ol></dd>" +
+              "<dt>htmlMapping</dt><dd>" + (rule.htmlMapping || "—") + "</dd>" +
+              (anti ? "<dt>antiPatterns</dt><dd><ul style='margin:0;padding-left:18px'>" + anti + "</ul></dd>" : "") +
+            "</dl>";
+          detailsRoot.appendChild(detail);
+        });
+      }
+
+      function renderAgentSummary(data) {
+        var mustCount = data.rules.filter(function (r) { return r.priority === "must"; }).length;
+        var el = document.getElementById("agent-summary");
+        el.innerHTML =
+          "<p><strong>数据源</strong>：<code>rules.json</code>（v" + data.version + "）· " + data.rules.length + " 条规则，其中 <strong>" + mustCount + " 条 must</strong></p>" +
+          "<p><strong>Canvas</strong>：" + data.tokens.canvas.width + "×" + data.tokens.canvas.heightDefault + "px · " +
+          "背景 " + data.tokens.colors.bgPage + " · 间距模数 " + data.tokens.spacing.grid + "px</p>" +
+          "<p><strong>修正优先级</strong>：layout → canvas → spacing → typography → color → component → acceptance</p>" +
+          "<p><strong>反模式</strong>：" + data.antiPatterns.map(function (a) { return a.id + " " + a.description; }).join("；") + "</p>";
+
+        var promptEl = document.getElementById("agent-prompt-block");
+        var promptText = data.agentPromptTemplate;
+        promptEl.childNodes.forEach(function (n) {
+          if (n.nodeType === 3) promptEl.removeChild(n);
+        });
+        var btn = promptEl.querySelector(".copy-btn");
+        promptEl.insertBefore(document.createTextNode(promptText), btn);
+      }
+
+      function copyText(text) {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          return navigator.clipboard.writeText(text);
+        }
+        var ta = document.createElement("textarea");
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+        return Promise.resolve();
+      }
+
+      function setupCopyButtons(data) {
+        document.getElementById("btn-copy-prompt").addEventListener("click", function () {
+          copyText(data.agentPromptTemplate).then(function () {
+            alert("Agent 提示词已复制");
+          });
+        });
+
+        document.getElementById("btn-copy-rules-md").addEventListener("click", function () {
+          var hint = "请在 Cursor 对话中使用：\n@rules.json\n@RULES.md\n@index.html\n\n并附上 Figma 文件链接。";
+          copyText(hint).then(function () { alert("已复制 @ 引用说明"); });
+        });
+
+        document.getElementById("btn-download-json").addEventListener("click", function () {
+          var blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+          var a = document.createElement("a");
+          a.href = URL.createObjectURL(blob);
+          a.download = "rules.json";
+          a.click();
+          URL.revokeObjectURL(a.href);
+        });
+
+        document.querySelectorAll("[data-copy-target]").forEach(function (btn) {
+          btn.addEventListener("click", function () {
+            var id = btn.getAttribute("data-copy-target");
+            var block = document.getElementById(id);
+            var text = block.textContent.replace("复制", "").trim();
+            copyText(text);
+          });
+        });
+      }
+
+      function initUI(data) {
+        RULES_DATA = data;
+        renderAgentSummary(data);
+        renderRulesIndex(data);
+        renderChecklist(buildChecklistFromRules(data.rules));
+        setupCopyButtons(data);
+      }
+
+      function loadRules() {
+        return fetch("rules.json", { cache: "no-store" })
+          .then(function (r) {
+            if (!r.ok) throw new Error("fetch failed");
+            return r.json();
+          })
+          .catch(function () {
+            var el = document.getElementById("rules-data-embed");
+            if (el && el.textContent.trim()) return JSON.parse(el.textContent);
+            throw new Error("rules.json unavailable");
+          });
+      }
+
+      // Sidebar scroll spy
+      var links = document.querySelectorAll(".nav-list a");
+      var sections = Array.prototype.slice.call(document.querySelectorAll("section[id]"));
+
+      function onScroll() {
+        var scrollY = window.scrollY + 80;
+        var current = sections[0] && sections[0].id;
+        sections.forEach(function (sec) {
+          if (sec.offsetTop <= scrollY) current = sec.id;
+        });
+        links.forEach(function (a) {
+          a.classList.toggle("active", a.getAttribute("href") === "#" + current);
+        });
+      }
+
+      document.getElementById("btn-reset").addEventListener("click", function () {
+        if (confirm("确定重置所有勾选状态？")) {
+          localStorage.removeItem(STORAGE_KEY);
+          if (RULES_DATA) renderChecklist(buildChecklistFromRules(RULES_DATA.rules));
+        }
+      });
+
+      document.getElementById("btn-print").addEventListener("click", function () {
+        window.print();
+      });
+
+      window.addEventListener("scroll", onScroll, { passive: true });
+
+      loadRules().then(initUI).catch(function (err) {
+        console.error(err);
+        root.innerHTML = "<p style='color:var(--danger)'>无法加载 rules.json，请确保与 index.html 同目录。</p>";
+      });
+
+      onScroll();
+    })();
+  </script>
+  <!-- 离线回退：file:// 打开时 fetch 可能失败，可在此嵌入 rules.json 副本 -->
+  <script type="application/json" id="rules-data-embed">{
+  "$schema": "figma-export-fidelity/v1",
+  "version": "1.1.0",
+  "updated": "2026-06-01",
+  "purpose": "Figma 设计稿导出 HTML 前的结构与 Token 约束，供 Cursor Agent 审计并调用 Figma MCP 自动修正",
+  "targetFidelity": {
+    "description": "固定 390px 视口、Web 字体已加载、静态页面",
+    "maxPixelDrift": 2,
+    "notGuaranteed": ["跨浏览器字体渲染差异", "复杂动效", "混合模式与多重阴影", "绝对定位主体布局"]
+  },
+  "cursorUsage": {
+    "filesToMention": ["rules.json", "RULES.md", "index.html"],
+    "recommendedWorkflow": [
+      "读取 rules.json 全部 must 级规则",
+      "用 Figma MCP get_metadata / use_figma 审计当前 Frame",
+      "按 fix 字段逐条修正（优先 layout → spacing → typography → color → component）",
+      "用 audit.pluginHint 脚本复检",
+      "试点页截图对比后再批量处理"
+    ],
+    "figmaMcpSkills": ["figma-use", "figma-generate-design"],
+    "agentInstructions": "修正设计稿时只改 Figma 结构与 Token，不要改 HTML 导出结果来凑视觉。所有容器优先 Auto Layout；禁止用绝对坐标替代 flex 语义。"
+  },
+  "tokens": {
+    "canvas": { "width": 390, "heightDefault": 844, "unit": "px" },
+    "safeAreas": {
+      "statusBar": { "width": 390, "height": 44, "fill": "#FFFFFF" },
+      "bottomPlaceholder": { "width": 390, "height": 39, "fill": "#FFFFFF" }
+    },
+    "spacing": {
+      "grid": 4,
+      "pageHorizontal": 16,
+      "moduleGap": 16,
+      "cardPadding": 16,
+      "iconTextGap": 8,
+      "listRowPaddingY": 12,
+      "tagPadding": "4px 8px",
+      "priceSymbolGap": 4
+    },
+    "radius": {
+      "card": 12,
+      "input": 8,
+      "tag": 4,
+      "buttonAllowed": [4, 8, 12, 16],
+      "pill": 999
+    },
+    "heights": {
+      "navBar": 44,
+      "primaryButton": 48,
+      "searchBar": 36,
+      "tabBar": 56
+    },
+    "widths": {
+      "buttonMax": 370
+    },
+    "colors": {
+      "bgPage": "#F7F7F7",
+      "bgContainer": "#FFFFFF",
+      "brand": "#F32F41",
+      "textPrimary": "#333333",
+      "textSecondary": "#929292",
+      "border": "#D7D7D5",
+      "disabled": "#EDEDED",
+      "brandAuxLight": "#FFF2F2"
+    },
+    "fonts": {
+      "uiApple": "PingFang SC",
+      "uiWindows": "Source Han Sans SC",
+      "dataNumber": "TCloudNumber",
+      "dataNumberStyle": "Bold"
+    },
+    "icons": {
+      "canvasSize": 24,
+      "safeArea": 20,
+      "smallSize": 16,
+      "strokeWidth": 2,
+      "library": ["Stratis", "Iconex"]
+    }
+  },
+  "components": {
+    "PageTitleBar": {
+      "height": 44,
+      "htmlTag": "header",
+      "mustUseInstance": true,
+      "forbidden": ["文字 < 或 ＜ 作返回", "容器四周边框"]
+    },
+    "Button": {
+      "height": 48,
+      "maxWidth": 370,
+      "htmlTag": "button",
+      "mustUseInstance": true,
+      "textAlign": "center both axes"
+    },
+    "PageTabs": {
+      "width": 390,
+      "htmlTag": "nav",
+      "forbidden": ["容器四周边框", "与卡片负间距层叠"]
+    }
+  },
+  "rules": [
+    {
+      "id": "RULE-001",
+      "checklistId": "c1",
+      "category": "canvas",
+      "priority": "must",
+      "title": "根画板宽度 390px，无设备外壳",
+      "requirement": "页面根 Frame 宽度固定 390px，直角矩形，禁止圆角画板、设备壳、外描边装饰",
+      "figmaAction": "设置根 Frame layoutMode=VERTICAL, width=390；移除 clipContent 外的装饰层",
+      "audit": {
+        "check": "根 Frame width === 390 && cornerRadius === 0",
+        "pluginHint": "const root = figma.currentPage.selection[0] || figma.currentPage.children.find(n=>n.type==='FRAME'); return { width: root?.width, cornerRadius: root?.cornerRadius };"
+      },
+      "fix": ["选中页面根 Frame，宽设为 390", "删除设备外壳、mockup 装饰层", "确认画板 cornerRadius 为 0"],
+      "htmlMapping": "body 或 .page 容器 width: 390px"
+    },
+    {
+      "id": "RULE-002",
+      "checklistId": "c2",
+      "category": "canvas",
+      "priority": "must",
+      "title": "状态栏与底部占位",
+      "requirement": "顶部 390×44、底部 390×39 纯白 #FFFFFF 占位，不绘制系统 UI",
+      "figmaAction": "在根 Auto Layout 首尾各插入 Fixed 390×44 / 390×39 白底 Frame",
+      "audit": {
+        "check": "存在 height=44 与 height=39 的顶底占位 Frame",
+        "pluginHint": "const f=figma.currentPage.findAll(n=>n.type==='FRAME'&&n.width===390); return f.filter(n=>n.height===44||n.height===39).map(n=>({name:n.name,h:n.height}));"
+      },
+      "fix": ["顶栏下、内容区上插入 StatusBar/Placeholder 390×44 #FFF", "页面最底部插入 BottomSafe/Placeholder 390×39 #FFF"],
+      "htmlMapping": "占位 div，无 status-bar 系统图标"
+    },
+    {
+      "id": "RULE-003",
+      "checklistId": "c3",
+      "category": "canvas",
+      "priority": "must",
+      "title": "页面背景 #F7F7F7",
+      "requirement": "根画板或页面主容器填充 #F7F7F7",
+      "figmaAction": "root.fills = [{ type:'SOLID', color: hexToFigma('#F7F7F7') }]",
+      "audit": { "check": "根 Frame 填充色为 #F7F7F7" },
+      "fix": ["根 Frame 背景设为 #F7F7F7"],
+      "htmlMapping": "background: #F7F7F7 或 var(--bg-page)"
+    },
+    {
+      "id": "RULE-004",
+      "checklistId": "c4",
+      "category": "canvas",
+      "priority": "must",
+      "title": "禁止横向溢出",
+      "requirement": "所有子 Frame 宽度 ≤390，无元素超出画布导致横向滚动",
+      "figmaAction": "检查并修正 width>390 的 Frame；Auto Layout 子项用 FILL 而非固定超宽",
+      "audit": {
+        "check": "无 width > 390 的可见 Frame",
+        "pluginHint": "return figma.currentPage.findAll(n=>n.type==='FRAME'&&n.visible&&n.width>390).map(n=>({name:n.name,width:n.width}));"
+      },
+      "fix": ["将超宽 Frame 改为 ≤390", "列表/卡片使用 padding 16 而非撑满超宽"],
+      "htmlMapping": "overflow-x: hidden; max-width: 390px"
+    },
+    {
+      "id": "RULE-005",
+      "checklistId": "c5",
+      "category": "layout",
+      "priority": "must",
+      "title": "所有容器启用 Auto Layout",
+      "requirement": "根画板、卡片、按钮、列表行、导航栏等 Frame 必须 layoutMode 为 HORIZONTAL 或 VERTICAL，禁止仅用 Group",
+      "figmaAction": "Group 转 Frame 并 Shift+A 启用 Auto Layout；设置 direction、padding、itemSpacing",
+      "audit": {
+        "check": "主体 Frame 的 layoutMode !== 'NONE'",
+        "pluginHint": "return figma.currentPage.findAll(n=>n.type==='FRAME'&&n.layoutMode==='NONE'&&n.children.length>0).map(n=>n.name);"
+      },
+      "fix": ["选中 Group → 右键 Frame selection", "Shift+A 添加 Auto Layout", "用 gap/padding 替代手工 y 坐标"],
+      "htmlMapping": "display: flex; flex-direction; gap; padding",
+      "antiPatterns": ["Group 包裹多元素", "Frame 但 layoutMode=NONE 且多子元素手工摆放"]
+    },
+    {
+      "id": "RULE-006",
+      "checklistId": "c6",
+      "category": "layout",
+      "priority": "must",
+      "title": "禁止主体绝对定位",
+      "requirement": "列表、卡片内容、按钮组等不得 layoutPositioning='ABSOLUTE'，仅角标/浮层例外",
+      "figmaAction": "子节点 layoutPositioning 改为 AUTO；用 Auto Layout 顺序排布",
+      "audit": {
+        "check": "非角标/浮层节点无 ABSOLUTE",
+        "pluginHint": "return figma.currentPage.findAll(n=>'layoutPositioning' in n && n.layoutPositioning==='ABSOLUTE').map(n=>({name:n.name,parent:n.parent?.name}));"
+      },
+      "fix": ["取消 Absolute position", "将元素移入 Auto Layout 流"],
+      "htmlMapping": "避免 position:absolute 作为主布局",
+      "antiPatterns": ["x/y 手工拖拽对齐"]
+    },
+    {
+      "id": "RULE-007",
+      "checklistId": "c7",
+      "category": "layout",
+      "priority": "must",
+      "title": "删除隐藏与废弃图层",
+      "requirement": "visible=false 的废弃层、空 Frame 应删除，避免导出多余 DOM",
+      "figmaAction": "figma.currentPage.findAll(n=>!n.visible) Review 后 delete",
+      "audit": { "check": "无无用 hidden 层" },
+      "fix": ["图层列表面板删除 hidden 废弃层"],
+      "htmlMapping": "减少无用 wrapper"
+    },
+    {
+      "id": "RULE-008",
+      "checklistId": "c8",
+      "category": "layout",
+      "priority": "must",
+      "title": "Tab 与卡片禁止负间距层叠",
+      "requirement": "PageTabs 与下方卡片分属上下 Auto Layout，itemSpacing≥0，禁止负 margin 叠压",
+      "figmaAction": "移除负 itemSpacing；Tab 与卡片间用 16px gap",
+      "audit": { "check": "Tab 容器与卡片无 overlap" },
+      "fix": ["Tab 区域与卡片改为纵向 Auto Layout", "间距 16px"],
+      "htmlMapping": "flex column + gap，无 negative margin"
+    },
+    {
+      "id": "RULE-009",
+      "checklistId": "c9",
+      "category": "spacing",
+      "priority": "must",
+      "title": "4px 模数整数",
+      "requirement": "padding、gap、圆角、固定宽高均为 4 的整数倍，禁止 13.5px 等小数",
+      "figmaAction": "四舍五入到最近 4px 倍数：paddingTop/Left/itemSpacing/cornerRadius",
+      "audit": {
+        "check": "spacing 值 % 4 === 0",
+        "pluginHint": "const frames=figma.currentPage.findAll(n=>n.type==='FRAME'); return frames.filter(f=>[f.paddingTop,f.paddingLeft,f.itemSpacing,f.cornerRadius].some(v=>v&&v%4!==0)).map(f=>({name:f.name,p:f.paddingTop,g:f.itemSpacing,r:f.cornerRadius}));"
+      },
+      "fix": ["Design 面板数值改为 4/8/12/16..."],
+      "htmlMapping": "CSS px 整数，gap 与 padding 可精确映射"
+    },
+    {
+      "id": "RULE-010",
+      "checklistId": "c10",
+      "category": "spacing",
+      "priority": "must",
+      "title": "页面边距与模块间距 16px",
+      "requirement": "主内容区左右 padding 16，模块间 gap 16",
+      "figmaAction": "主容器 paddingLeft/Right=16，兄弟模块 itemSpacing=16",
+      "fix": ["统一为 token spacing.pageHorizontal / moduleGap"],
+      "htmlMapping": "padding: 0 16px; gap: 16px"
+    },
+    {
+      "id": "RULE-011",
+      "checklistId": "c11",
+      "category": "spacing",
+      "priority": "must",
+      "title": "固定高度组件",
+      "requirement": "PageTitleBar 44px，主按钮 48px",
+      "figmaAction": "对应 Frame layoutSizingVertical=FIXED，height=44|48",
+      "fix": ["标题栏高 44", "Button 实例高 48"],
+      "htmlMapping": "height: 44px / 48px"
+    },
+    {
+      "id": "RULE-012",
+      "checklistId": "c12",
+      "category": "spacing",
+      "priority": "must",
+      "title": "按钮最大宽 370px",
+      "requirement": "通栏主按钮、底栏按钮 width≤370",
+      "figmaAction": "Button Frame width=370 或 layoutSizingHorizontal=FIXED",
+      "fix": ["按钮宽设为 370 或 HUG 但不超过 370"],
+      "htmlMapping": "max-width: 370px"
+    },
+    {
+      "id": "RULE-013",
+      "checklistId": "c13",
+      "category": "typography",
+      "priority": "must",
+      "title": "文本必须为 Text 图层",
+      "requirement": "禁止 Outline stroke、Rasterize、PNG 代替文案",
+      "figmaAction": "保留 TEXT 节点 type；转曲内容需重新创建 Text",
+      "audit": {
+        "check": "文案区域无 VECTOR 代替 TEXT",
+        "pluginHint": "return figma.currentPage.findAll(n=>n.type==='VECTOR'&&/标题|按钮|label/i.test(n.name)).map(n=>n.name);"
+      },
+      "fix": ["删除图片化文字，重建 Text 层"],
+      "htmlMapping": "<span>/<p> 可编辑文本"
+    },
+    {
+      "id": "RULE-014",
+      "checklistId": "c14",
+      "category": "typography",
+      "priority": "must",
+      "title": "行高与字间距明确数值",
+      "requirement": "lineHeight 不用 AUTO；letterSpacing 为 px 或 % 明确值",
+      "figmaAction": "text.lineHeight = { unit:'PIXELS', value: N }",
+      "fix": ["文本面板 Line height 改为 Fixed px"],
+      "htmlMapping": "line-height: Npx"
+    },
+    {
+      "id": "RULE-015",
+      "checklistId": "c15",
+      "category": "typography",
+      "priority": "must",
+      "title": "金额 TCloudNumber + ¥ 间距 4px",
+      "requirement": "数字 font=TCloudNumber Bold；¥ 用 UI 字体；水平 gap 4px",
+      "figmaAction": "金额行用 HORIZONTAL Auto Layout gap=4；数字 Text fontName=TCloudNumber Bold",
+      "fix": ["拆分 ¥ 与数字为两个 Text", "gap 4px"],
+      "htmlMapping": "font-family: TCloudNumber; gap: 4px"
+    },
+    {
+      "id": "RULE-016",
+      "checklistId": "c16",
+      "category": "typography",
+      "priority": "must",
+      "title": "禁止字符代替图标",
+      "requirement": "返回不用 < ；勾号不用 √；用 chevron-left、check 组件",
+      "figmaAction": "替换 TEXT 为 Component 实例 chevron-left / check",
+      "fix": ["插入图标组件库实例"],
+      "htmlMapping": "SVG icon，非 text 字符"
+    },
+    {
+      "id": "RULE-017",
+      "checklistId": "c17",
+      "category": "color",
+      "priority": "must",
+      "title": "无阴影无渐变",
+      "requirement": "effects 数组为空或仅简单单层；fills 为 SOLID",
+      "figmaAction": "node.effects = []；移除 GRADIENT fills",
+      "audit": {
+        "pluginHint": "return figma.currentPage.findAll(n=>'effects' in n && n.effects.length>0).map(n=>({name:n.name,effects:n.effects.length}));"
+      },
+      "fix": ["Effects 面板清除 Drop shadow / Layer blur"],
+      "htmlMapping": "box-shadow: none"
+    },
+    {
+      "id": "RULE-018",
+      "checklistId": "c18",
+      "category": "color",
+      "priority": "must",
+      "title": "白底卡片无描边",
+      "requirement": "fill #FFFFFF 的内容卡片 strokes 为空；靠底色+圆角+间距区分",
+      "figmaAction": "card.strokes = []",
+      "fix": ["移除白卡 1px 边框"],
+      "htmlMapping": "border: none on .card"
+    },
+    {
+      "id": "RULE-019",
+      "checklistId": "c19",
+      "category": "color",
+      "priority": "should",
+      "title": "颜色使用规范 Token",
+      "requirement": "文字/背景/边框使用 tokens.colors 定义值，绑定 Variable 更佳",
+      "figmaAction": "setBoundVariableForPaint 或手动设为 #333/#929292/#F32F41 等",
+      "fix": ["对照 tokens.colors 修正色值"],
+      "htmlMapping": "CSS variables"
+    },
+    {
+      "id": "RULE-020",
+      "checklistId": "c20",
+      "category": "color",
+      "priority": "must",
+      "title": "无混合模式与复杂模糊",
+      "requirement": "blendMode=NORMAL；无 BACKGROUND_BLUR",
+      "figmaAction": "blendMode='NORMAL'; 移除 backdrop blur effects",
+      "fix": ["图层 Blend mode 改 Normal"],
+      "htmlMapping": "无 mix-blend-mode / backdrop-filter"
+    },
+    {
+      "id": "RULE-021",
+      "checklistId": "c21",
+      "category": "component",
+      "priority": "must",
+      "title": "使用组件库实例",
+      "requirement": "PageTitleBar、Button、PageTabs 等为 COMPONENT 实例，未 Detach",
+      "figmaAction": "从库 swap 为规范 Component；避免 mainComponent=null",
+      "audit": {
+        "pluginHint": "return figma.currentPage.findAll(n=>n.type==='INSTANCE').map(i=>({name:i.name,main:i.mainComponent?.name}));"
+      },
+      "fix": ["Assets 面板插入组件实例", "误 Detach 的重新实例化"],
+      "htmlMapping": "语义化 component class"
+    },
+    {
+      "id": "RULE-022",
+      "checklistId": "c22",
+      "category": "asset",
+      "priority": "must",
+      "title": "SVG 矢量图标无 emoji",
+      "requirement": "24×24 画布，strokeWidth=2，库 Stratis/Iconex",
+      "figmaAction": "替换 emoji/文字为 ICON Instance",
+      "fix": ["插入规范图标 Component"],
+      "htmlMapping": "inline SVG"
+    },
+    {
+      "id": "RULE-023",
+      "checklistId": "c23",
+      "category": "asset",
+      "priority": "should",
+      "title": "图片占位规范",
+      "requirement": "#EDEDED 底 + 居中白色 linear image 图标",
+      "figmaAction": "占位 Frame fill #EDEDED + icon instance",
+      "fix": ["统一占位样式"],
+      "htmlMapping": ".image-placeholder"
+    },
+    {
+      "id": "RULE-024",
+      "checklistId": "c24",
+      "category": "component",
+      "priority": "should",
+      "title": "图层可读命名",
+      "requirement": "格式 组件/变体/状态 或语义英文名，非 Frame 123",
+      "figmaAction": "重命名 node.name",
+      "fix": ["Button/Primary/Default 等"],
+      "htmlMapping": "class / data-component 可读"
+    },
+    {
+      "id": "RULE-025",
+      "checklistId": "c25",
+      "category": "acceptance",
+      "priority": "must",
+      "title": "试点页试导出",
+      "requirement": "选含标题栏+列表+按钮+卡片的典型页先导出 1 页验证",
+      "figmaAction": "人工：插件导出单 Frame",
+      "fix": ["选试点 Frame 导出"],
+      "htmlMapping": "N/A"
+    },
+    {
+      "id": "RULE-026",
+      "checklistId": "c26",
+      "category": "acceptance",
+      "priority": "must",
+      "title": "截图对比 ≤2px",
+      "requirement": "Figma 导出图 vs 浏览器 390 宽截图叠图，主要区块偏差≤2px",
+      "figmaAction": "人工验收",
+      "fix": ["未通过项回 Figma 改结构"],
+      "htmlMapping": "N/A"
+    },
+    {
+      "id": "RULE-027",
+      "checklistId": "c27",
+      "category": "acceptance",
+      "priority": "must",
+      "title": "无横向滚动",
+      "requirement": "390 宽视口下 document.documentElement.scrollWidth ≤ 390",
+      "figmaAction": "人工浏览器检查",
+      "fix": ["回 RULE-004 修正超宽"],
+      "htmlMapping": "overflow-x: hidden"
+    },
+    {
+      "id": "RULE-028",
+      "checklistId": "c28",
+      "category": "acceptance",
+      "priority": "must",
+      "title": "Web 字体已引入",
+      "requirement": "TCloudNumber、Source Han Sans SC 等在 HTML @font-face 可用",
+      "figmaAction": "导出配置或 HTML 模板检查",
+      "fix": ["补充 @font-face"],
+      "htmlMapping": "@font-face"
+    }
+  ],
+  "antiPatterns": [
+    { "id": "AP-01", "description": "Group + 绝对定位 eyeball 对齐", "severity": "critical" },
+    { "id": "AP-02", "description": "小数 px 间距", "severity": "high" },
+    { "id": "AP-03", "description": "文字转曲或 Rasterize", "severity": "critical" },
+    { "id": "AP-04", "description": "Tab 负间距压住卡片", "severity": "high" },
+    { "id": "AP-05", "description": "白底卡片 1px 描边", "severity": "medium" },
+    { "id": "AP-06", "description": "多重阴影 / Inner shadow / Layer blur", "severity": "high" },
+    { "id": "AP-07", "description": "Frame 宽度 >390", "severity": "critical" },
+    { "id": "AP-08", "description": "用 < √ emoji 代替图标", "severity": "medium" }
+  ],
+  "agentPromptTemplate": "请读取 @rules.json，对当前 Figma 页面（链接或选中 Frame）执行导出 HTML 前的合规审计。\n\n步骤：\n1. 用 get_metadata / use_figma 获取页面结构\n2. 逐条检查 priority=must 的 rules（共 22 条）\n3. 输出违规清单：ruleId、节点名、当前值、期望值\n4. 经我确认后，用 figma-use 按 fix 字段自动修正\n5. 修正后用 audit.pluginHint 复检\n6. 全部 must 通过后告知可试导出\n\n约束：只改 Figma 结构，不改 HTML；所有容器优先 Auto Layout；间距对齐 4px 模数。"
+}
+</script>
+</body>
+</html>
